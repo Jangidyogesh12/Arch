@@ -1,0 +1,11 @@
+[package]
+name = "arch-wasm-wrapper"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+arch-engine = { path = "../../engine", package = "arch-engine"}
+wasm-bindgen = { workspace = true }
