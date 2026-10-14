@@ -3,13 +3,13 @@ use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
 
-pub struct CounterWraper {
+pub struct CounterWrapper {
     inner: Counter,
 }
 
 #[wasm_bindgen]
 
-impl CounterWraper {
+impl CounterWrapper {
     #[wasm_bindgen(constructor)]
     pub fn new() -> Self {
         Self {
@@ -17,8 +17,8 @@ impl CounterWraper {
         }
     }
 
-    pub fn increment(&mut self) {
-        self.inner.increment();
+    pub fn increment(&mut self) -> u32 {
+        self.inner.increment()
     }
 
     pub fn value(&self) -> u32 {
