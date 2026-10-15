@@ -1,31 +1,27 @@
-use arch_engine::Counter;
+use arch_engine::DrawLine;
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
 
-pub struct CounterWrapper {
-    inner: Counter,
+pub struct DrawLineWrapper {
+    line: DrawLine,
 }
 
 #[wasm_bindgen]
-
-impl CounterWrapper {
+impl DrawLineWrapper {
     #[wasm_bindgen(constructor)]
-    pub fn new() -> Self {
+    pub fn new(x0: i32, y0: i32, x1: i32, y1: i32) -> Self {
         Self {
-            inner: Counter::new(),
+            line: DrawLine::new(x0, y0, x1, y1),
         }
     }
 
-    pub fn increment(&mut self) -> u32 {
-        self.inner.increment()
-    }
-
-    pub fn value(&self) -> u32 {
-        self.inner.get()
-    }
-
-    pub fn reset(&mut self) {
-        self.inner.reset();
+    pub fn get_line_pxl_coordinates(&mut self) -> Vec<i32> {
+        let mut flat = Vec::new();
+        for point in self.line.get_line_pxl_coordinates_using_dda() {
+            flat.push(point.x);
+            flat.push(point.y);
+        }
+        return flat;
     }
 }

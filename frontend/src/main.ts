@@ -1,24 +1,47 @@
 import './style.css'
-import { initWasm } from './wasm-loader';
-import { CounterWrapper } from '../wrapper/pkg/arch_wasm_wrapper'
+import { initBoard, previewLine } from './canvas';
 
-document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
-<section id="center">
-  <div>
-    <h1>Counter</h1>
-    <p>Click the button to increase the count</p>
-  </div>
-  <button id="counter" type="button" class="counter"></button>
-</section>
-`
+const app = document.querySelector<HTMLDivElement>('#app')!;
+app.innerHTML = '';
+
+const board = await initBoard();
+app.appendChild(board);
+
+// ---- Pointer logic (owner: user) ----
+// Attach pointerdown / pointermove / pointerup on `board` here and call
+// previewLine(ax, ay, cx, cy) from './canvas' with canvas-pixel coordinates.
 
 
-await initWasm();
+let anchor: { x: number, y: number } | null= null;
 
-const counter = new CounterWrapper();
 
-const btn = document.querySelector<HTMLButtonElement>("#counter")!;
-
-btn.onclick = () => {
-  btn.textContent = String(counter.increment());
+function to_canvas(e: PointerEvent) {
+  const rect = board.getBoundingClientRect();
+  return {x : e.clientX - rect.left, y : e.clientY - rect.top}
 }
+
+
+board.addEventListener('pointerdown', (e) => {
+  if (e.button !== 0) return;
+  anchor = to_canvas(e);
+  board.setPointerCapture(e.pointerId)
+})
+
+
+board.addEventListener('pointermove', (e) => {
+  if (!anchor) return;
+  const cur = to_canvas(e);
+  previewLine(anchor.x, anchor.y, cur.x, cur.y)
+})
+
+board.addEventListener("pointerup", (e) => {
+  if (!anchor) return;
+  const cur = to_canvas(e);
+  previewLine(anchor.x, anchor.y, cur.x, cur.y);
+  anchor = null;
+})
+
+
+board.addEventListener('pointercancel', () => {
+  anchor = null
+})
