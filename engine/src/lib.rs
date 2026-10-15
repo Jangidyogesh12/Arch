@@ -51,38 +51,37 @@ impl DrawLine {
     }
 
     pub fn get_line_pxl_coordinates_using_bresenham(&mut self) -> Vec<Point> {
+        let mut x = self.p0.x;
+        let mut y = self.p0.y;
+
         let dx = (self.p1.x - self.p0.x).abs();
         let dy = (self.p1.y - self.p0.y).abs();
 
         let sx = if self.p0.x < self.p1.x { 1 } else { -1 };
         let sy = if self.p0.y < self.p1.y { 1 } else { -1 };
 
-        let steep = dy > dx;
-        let major_len = if steep { dy } else { dx };
-        let minor_len = if steep { dx } else { dy };
-        let major_step = if steep { sy } else { sx };
-        let minor_step = if steep { sx } else { sy };
-
-        let mut major = if steep { self.p0.y } else { self.p0.x };
-        let mut minor = if steep { self.p0.x } else { self.p0.y };
+        let mut err = dx - dy;
 
         self.arr.clear();
 
-        // D0 = 2*minor - major.
-        let mut d = 2 * minor_len - major_len;
-        for _ in 0..=major_len {
-            if steep {
-                self.arr.push(Point { x: minor, y: major });
-            } else {
-                self.arr.push(Point { x: major, y: minor });
+        loop {
+            self.arr.push(Point { x, y });
+
+            if x == self.p1.x && y == self.p1.y {
+                break;
             }
-            if d >= 0 {
-                minor += minor_step;
-                d += 2 * (minor_len - major_len);
-            } else {
-                d += 2 * minor_len;
+
+            let e2 = 2 * err;
+
+            if e2 > -dy {
+                err -= dy;
+                x += sx;
             }
-            major += major_step;
+
+            if e2 < dx {
+                err += dx;
+                y += sy;
+            }
         }
 
         return self.arr.clone();

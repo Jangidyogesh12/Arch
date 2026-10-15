@@ -18,7 +18,7 @@ impl DrawLineWrapper {
 
     pub fn get_line_pxl_coordinates(&mut self) -> Vec<i32> {
         let mut flat = Vec::new();
-        for point in self.line.get_line_pxl_coordinates_using_dda() {
+        for point in self.line.get_line_pxl_coordinates_using_bresenham() {
             flat.push(point.x);
             flat.push(point.y);
         }
