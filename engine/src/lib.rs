@@ -51,46 +51,38 @@ impl DrawLine {
     }
 
     pub fn get_line_pxl_coordinates_using_bresenham(&mut self) -> Vec<Point> {
-        // Magnitudes + travel direction per axis: one derivation (first
-        // octant, study.md section 3.3) covers all 8 octants via sign steps
-        // (study.md section 3.4). Works y-down as-is: the grid is symmetric.
         let dx = (self.p1.x - self.p0.x).abs();
         let dy = (self.p1.y - self.p0.y).abs();
 
         let sx = if self.p0.x < self.p1.x { 1 } else { -1 };
         let sy = if self.p0.y < self.p1.y { 1 } else { -1 };
 
-        let mut x = self.p0.x;
-        let mut y = self.p0.y;
+        let steep = dy > dx;
+        let major_len = if steep { dy } else { dx };
+        let minor_len = if steep { dx } else { dy };
+        let major_step = if steep { sy } else { sx };
+        let minor_step = if steep { sx } else { sy };
+
+        let mut major = if steep { self.p0.y } else { self.p0.x };
+        let mut minor = if steep { self.p0.x } else { self.p0.y };
 
         self.arr.clear();
 
-        if dx >= dy {
-            // Shallow: x drives, decision controls y. D0 = 2*dy - dx.
-            let mut d = 2 * dy - dx;
-            for _ in 0..=dx {
-                self.arr.push(Point { x, y });
-                if d >= 0 {
-                    y += sy;
-                    d += 2 * (dy - dx);
-                } else {
-                    d += 2 * dy;
-                }
-                x += sx;
+        // D0 = 2*minor - major.
+        let mut d = 2 * minor_len - major_len;
+        for _ in 0..=major_len {
+            if steep {
+                self.arr.push(Point { x: minor, y: major });
+            } else {
+                self.arr.push(Point { x: major, y: minor });
             }
-        } else {
-            // Steep: y drives, decision controls x (axes swapped).
-            let mut d = 2 * dx - dy;
-            for _ in 0..=dy {
-                self.arr.push(Point { x, y });
-                if d >= 0 {
-                    x += sx;
-                    d += 2 * (dx - dy);
-                } else {
-                    d += 2 * dx;
-                }
-                y += sy;
+            if d >= 0 {
+                minor += minor_step;
+                d += 2 * (minor_len - major_len);
+            } else {
+                d += 2 * minor_len;
             }
+            major += major_step;
         }
 
         return self.arr.clone();
