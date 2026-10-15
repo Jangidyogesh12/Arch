@@ -24,4 +24,15 @@ impl DrawLineWrapper {
         }
         return flat;
     }
+
+    pub fn get_line_aa_pxl_coordinates(&mut self) -> Vec<i32> {
+        let mut flat = Vec::new();
+        for (point, intensity) in self.line.get_line_pxl_coordinates_using_wu() {
+            let alpha = (intensity.clamp(0.0, 1.0) * 255.0).round() as i32;
+            flat.push(point.x);
+            flat.push(point.y);
+            flat.push(alpha);
+        }
+        return flat;
+    }
 }

@@ -1,5 +1,5 @@
 import './style.css'
-import { initBoard, previewLine } from './canvas';
+import { initBoard, previewLineAA } from './canvas';
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
 app.innerHTML = '';
@@ -31,13 +31,13 @@ board.addEventListener('pointerdown', (e) => {
 board.addEventListener('pointermove', (e) => {
   if (!anchor) return;
   const cur = to_canvas(e);
-  previewLine(anchor.x, anchor.y, cur.x, cur.y)
+  previewLineAA(anchor.x, anchor.y, cur.x, cur.y)
 })
 
 board.addEventListener("pointerup", (e) => {
   if (!anchor) return;
   const cur = to_canvas(e);
-  previewLine(anchor.x, anchor.y, cur.x, cur.y);
+  previewLineAA(anchor.x, anchor.y, cur.x, cur.y);
   anchor = null;
 })
 

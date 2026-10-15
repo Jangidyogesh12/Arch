@@ -91,3 +91,28 @@ export function previewLine(x0: number, y0: number, x1: number, y1: number): voi
 
   line.free();
 }
+
+/** Anti-aliased variant: same frame contract, but each pixel carries an
+ *  alpha byte (triples [x, y, alpha255]) blended over the background.
+ *  Swap your pointer handlers to this to see the smooth line. */
+export function previewLineAA(x0: number, y0: number, x1: number, y1: number): void {
+  if (!ctx) return;
+
+  const line = new DrawLineWrapper(
+    Math.round(x0),
+    Math.round(y0),
+    Math.round(x1),
+    Math.round(y1),
+  );
+  const coords = line.get_line_aa_pxl_coordinates();
+
+  ctx.clearRect(0, 0, boardW, boardH);
+  paintBackground();
+  for (let i = 0; i + 2 < coords.length; i += 3) {
+    ctx.globalAlpha = coords[i + 2] / 255;
+    ctx.fillRect(coords[i], coords[i + 1], 1, 1);
+  }
+  ctx.globalAlpha = 1;
+
+  line.free();
+}
