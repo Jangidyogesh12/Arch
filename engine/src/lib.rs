@@ -75,8 +75,9 @@ impl Scene {
     }
 
     pub fn canvas_to_viewport(&self, x: f32, y: f32) -> Vec3 {
-        let scale = self.canvas.v_w as f32 / self.canvas.c_w as f32;
-        Vec3::new(x * scale, y * scale, self.canvas.d as f32)
+        let scale1 = self.canvas.v_w as f32 / self.canvas.c_w as f32;
+        let scale2 = self.canvas.v_h as f32 / self.canvas.c_h as f32;
+        Vec3::new(x * scale1, y * scale2, self.canvas.d as f32)
     }
 
     pub fn find_intersection_points(&self, sphere: &Sphere, d: Vec3) -> (f32, f32) {
