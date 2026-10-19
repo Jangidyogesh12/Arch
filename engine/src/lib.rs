@@ -1,168 +1,114 @@
-#[derive(Debug, Clone)]
-pub struct Point {
-    pub x: i32,
-    pub y: i32,
+use glam::Vec3;
+
+pub struct Sphere {
+    pub center: (f32, f32, f32),
+    pub radius: f32,
+    pub color: (u8, u8, u8),
 }
 
-pub struct DrawLine {
-    p0: Point,
-    p1: Point,
-    arr: Vec<Point>,
-}
-
-impl DrawLine {
-    pub fn new(x0: i32, y0: i32, x1: i32, y1: i32) -> Self {
+impl Sphere {
+    pub fn new(center: (f32, f32, f32), radius: f32, color: (u8, u8, u8)) -> Self {
         Self {
-            p0: Point { x: x0, y: y0 },
-            p1: Point { x: x1, y: y1 },
-            arr: Vec::new(),
+            center,
+            radius,
+            color,
+        }
+    }
+}
+
+pub struct Canvas {
+    pub v_w: i32,
+    pub v_h: i32,
+    pub c_w: i32,
+    pub c_h: i32,
+    pub d: i32,
+}
+
+impl Canvas {
+    pub fn new(v_w: i32, v_h: i32, c_w: i32, c_h: i32, d: i32) -> Self {
+        Self {
+            v_w,
+            v_h,
+            c_w,
+            c_h,
+            d,
+        }
+    }
+}
+
+pub struct Scene {
+    pub spheres: Vec<Sphere>,
+    pub canvas: Canvas,
+}
+
+impl Scene {
+    const ORIGIN: Vec3 = Vec3::new(0.0, 0.0, 0.0);
+    const BACK_GROUND_COLOR: (u8, u8, u8) = (255, 255, 255);
+    pub fn new(spheres: Vec<Sphere>, canvas: Canvas) -> Self {
+        Self {
+            spheres: spheres,
+            canvas,
         }
     }
 
-    pub fn get_line_pxl_coordinates_using_dda(&mut self) -> Vec<Point> {
-        let dx = self.p1.x - self.p0.x;
-        let dy = self.p1.y - self.p0.y;
+    pub fn trace_ray(&self, d: Vec3, t_min: f32, t_max: f32) -> (u8, u8, u8) {
+        let mut closes_t = f32::MAX;
+        let mut closest_sphere = None;
 
-        let steps = dy.abs().max(dx.abs());
+        for sphere in &self.spheres {
+            let (t1, t2) = self.find_intersection_points(sphere, d);
+            if t1 >= t_min && t2 <= t_max && t1 < closes_t {
+                closes_t = t1;
+                closest_sphere = Some(sphere);
+            }
 
-        self.arr.clear();
-
-        if steps == 0 {
-            self.arr.push(self.p0.clone());
-            return self.arr.clone();
+            if t2 >= t_min && t2 <= t_max && t2 < closes_t {
+                closes_t = t2;
+                closest_sphere = Some(sphere);
+            }
         }
 
-        let x_inc = dx as f64 / steps as f64;
-        let y_inc = dy as f64 / steps as f64;
-
-        let mut x = self.p0.x as f64;
-        let mut y = self.p0.y as f64;
-
-        for _ in 0..=steps {
-            self.arr.push(Point {
-                x: x.round() as i32,
-                y: y.round() as i32,
-            });
-            x += x_inc;
-            y += y_inc;
+        match closest_sphere {
+            Some(sphere) => sphere.color,
+            None => Self::BACK_GROUND_COLOR,
         }
-
-        return self.arr.clone();
     }
 
-    pub fn get_line_pxl_coordinates_using_bresenham(&mut self) -> Vec<Point> {
-        let mut x = self.p0.x;
-        let mut y = self.p0.y;
-
-        let dx = (self.p1.x - self.p0.x).abs();
-        let dy = (self.p1.y - self.p0.y).abs();
-
-        let sx = if self.p0.x < self.p1.x { 1 } else { -1 };
-        let sy = if self.p0.y < self.p1.y { 1 } else { -1 };
-
-        let mut err = dx - dy;
-
-        self.arr.clear();
-
-        loop {
-            self.arr.push(Point { x, y });
-
-            if x == self.p1.x && y == self.p1.y {
-                break;
-            }
-
-            let e2 = 2 * err;
-
-            if e2 > -dy {
-                err -= dy;
-                x += sx;
-            }
-
-            if e2 < dx {
-                err += dx;
-                y += sy;
-            }
-        }
-
-        return self.arr.clone();
+    pub fn canvas_to_viewport(&self, x: f32, y: f32) -> Vec3 {
+        let scale = self.canvas.v_w as f32 / self.canvas.c_w as f32;
+        Vec3::new(x * scale, y * scale, self.canvas.d as f32)
     }
 
-    pub fn get_line_pxl_coordinates_using_wu(&mut self) -> Vec<(Point, f64)> {
-        // Xiaolin Wu anti-aliasing (study.md section 3.6): instead of one
-        // pixel per column, plot the two pixels straddling the true line,
-        // weighted by coverage. Each column's pair sums to ~1.0, endpoints
-        // are dimmed by their fractional coverage (xgap). Returns pixels
-        // with intensity in 0.0..=1.0; blending happens on the frontend.
-        fn frac(v: f64) -> f64 {
-            return v - v.floor();
-        }
-        fn rfrac(v: f64) -> f64 {
-            return 1.0 - frac(v);
+    pub fn find_intersection_points(&self, sphere: &Sphere, d: Vec3) -> (f32, f32) {
+        let r = sphere.radius;
+        let co = Self::ORIGIN - Vec3::from(sphere.center);
+        let a = d.dot(d);
+        let b = 2.0 * co.dot(d);
+        let c = co.dot(co) - r * r;
+
+        let discriminent = b * b - 4.0 * a * c;
+
+        if discriminent < 0.0 {
+            return (f32::MAX, f32::MAX);
         }
 
-        let mut pixels: Vec<(Point, f64)> = Vec::new();
-        let mut plot = |x: i32, y: i32, steep: bool, intensity: f64| {
-            if intensity <= 0.0 {
-                return;
+        let t1 = (-b + discriminent.sqrt()) / (2.0 * a);
+        let t2 = (-b - discriminent.sqrt()) / (2.0 * a);
+
+        return (t1, t2);
+    }
+
+    pub fn paint_canvas(&self) -> Vec<(i32, i32, (u8, u8, u8))> {
+        let mut result: Vec<(i32, i32, (u8, u8, u8))> = Vec::new();
+        for x in (-self.canvas.c_w / 2)..(self.canvas.c_w / 2) {
+            for y in (-self.canvas.c_h / 2)..(self.canvas.c_h / 2) {
+                let d = self.canvas_to_viewport(x as f32, y as f32);
+                let color = self.trace_ray(d, 1e-4, f32::MAX);
+
+                result.push((x, y, color));
             }
-            if steep {
-                pixels.push((Point { x: y, y: x }, intensity));
-            } else {
-                pixels.push((Point { x, y }, intensity));
-            }
-        };
-
-        let mut x0 = self.p0.x as f64;
-        let mut y0 = self.p0.y as f64;
-        let mut x1 = self.p1.x as f64;
-        let mut y1 = self.p1.y as f64;
-
-        if x0 == x1 && y0 == y1 {
-            plot(x0 as i32, y0 as i32, false, 1.0);
-            return pixels;
         }
 
-        // Work in "x drives" space: transpose steep lines, order leftward.
-        let steep = (y1 - y0).abs() > (x1 - x0).abs();
-        if steep {
-            std::mem::swap(&mut x0, &mut y0);
-            std::mem::swap(&mut x1, &mut y1);
-        }
-        if x0 > x1 {
-            std::mem::swap(&mut x0, &mut x1);
-            std::mem::swap(&mut y0, &mut y1);
-        }
-
-        // dx > 0 guaranteed: dot returned early, vertical became horizontal.
-        let dx = x1 - x0;
-        let gradient = (y1 - y0) / dx;
-
-        // First endpoint, dimmed by fractional coverage.
-        let xend = x0.round();
-        let yend = y0 + gradient * (xend - x0);
-        let xgap = rfrac(x0 + 0.5);
-        let xpxl1 = xend as i32;
-        plot(xpxl1, yend.floor() as i32, steep, rfrac(yend) * xgap);
-        plot(xpxl1, yend.floor() as i32 + 1, steep, frac(yend) * xgap);
-        let mut intery = yend + gradient;
-
-        // Second endpoint (drawn after the main loop).
-        let xend2 = x1.round();
-        let yend2 = y1 + gradient * (xend2 - x1);
-        let xgap2 = frac(x1 + 0.5);
-        let xpxl2 = xend2 as i32;
-
-        let mut x = xpxl1 + 1;
-        while x < xpxl2 {
-            plot(x, intery.floor() as i32, steep, rfrac(intery));
-            plot(x, intery.floor() as i32 + 1, steep, frac(intery));
-            intery += gradient;
-            x += 1;
-        }
-
-        plot(xpxl2, yend2.floor() as i32, steep, rfrac(yend2) * xgap2);
-        plot(xpxl2, yend2.floor() as i32 + 1, steep, frac(yend2) * xgap2);
-
-        return pixels;
+        return result;
     }
 }

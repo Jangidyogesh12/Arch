@@ -1,5 +1,5 @@
 import './style.css'
-import { initBoard, previewLineAA } from './canvas';
+import { initBoard, getScene, renderScene } from './canvas';
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
 app.innerHTML = '';
@@ -7,41 +7,17 @@ app.innerHTML = '';
 const board = await initBoard();
 app.appendChild(board);
 
-// ---- Pointer logic (owner: user) ----
-// Attach pointerdown / pointermove / pointerup on `board` here and call
-// previewLine(ax, ay, cx, cy) from './canvas' with canvas-pixel coordinates.
+const scene = getScene()!;
 
+// [x, y, z, radius, r, g, b]
+const SPHERES: [number, number, number, number, number, number, number][] = [
+  [-0.2, 0, 10, 0.15, 255, 0, 0],
+  [0.2, 0, 5, 0.15, 0, 255, 0],
+  [0, 0.2, 5, 0.12, 0, 0, 255],
+];
 
-let anchor: { x: number, y: number } | null= null;
-
-
-function to_canvas(e: PointerEvent) {
-  const rect = board.getBoundingClientRect();
-  return {x : e.clientX - rect.left, y : e.clientY - rect.top}
+for (const [x, y, z, radius, r, g, b] of SPHERES) {
+  scene.addSphere(x, y, z, radius, r, g, b);
 }
 
-
-board.addEventListener('pointerdown', (e) => {
-  if (e.button !== 0) return;
-  anchor = to_canvas(e);
-  board.setPointerCapture(e.pointerId)
-})
-
-
-board.addEventListener('pointermove', (e) => {
-  if (!anchor) return;
-  const cur = to_canvas(e);
-  previewLineAA(anchor.x, anchor.y, cur.x, cur.y)
-})
-
-board.addEventListener("pointerup", (e) => {
-  if (!anchor) return;
-  const cur = to_canvas(e);
-  previewLineAA(anchor.x, anchor.y, cur.x, cur.y);
-  anchor = null;
-})
-
-
-board.addEventListener('pointercancel', () => {
-  anchor = null
-})
+renderScene();
