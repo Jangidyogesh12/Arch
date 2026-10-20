@@ -37,6 +37,7 @@ impl PaintScene {
         r: u8,
         g: u8,
         b: u8,
+        s: u32,
     ) -> Result<(), JsValue> {
         if !x.is_finite() || !y.is_finite() || !z.is_finite() || !radius.is_finite() || radius <= 0.
         {
@@ -46,7 +47,7 @@ impl PaintScene {
         }
         self.scene
             .spheres
-            .push(EngineSphere::new((x, y, z), radius, (r, g, b)));
+            .push(EngineSphere::new((x, y, z), radius, (r, g, b), s));
 
         Ok(())
     }

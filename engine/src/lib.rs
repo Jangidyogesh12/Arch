@@ -4,14 +4,16 @@ pub struct Sphere {
     pub center: (f32, f32, f32),
     pub radius: f32,
     pub color: (u8, u8, u8),
+    pub specular: u32,
 }
 
 impl Sphere {
-    pub fn new(center: (f32, f32, f32), radius: f32, color: (u8, u8, u8)) -> Self {
+    pub fn new(center: (f32, f32, f32), radius: f32, color: (u8, u8, u8), specular: u32) -> Self {
         Self {
             center,
             radius,
             color,
+            specular,
         }
     }
 }
@@ -36,6 +38,18 @@ impl Canvas {
     }
 }
 
+#[derive(Clone, Copy)]
+pub enum LightKind {
+    Ambient,
+    Point { position: Vec3 },
+    Direction { direction: Vec3 },
+}
+
+pub struct Light {
+    pub kind: LightKind,
+    pub intensity: f32,
+}
+
 pub struct Scene {
     pub spheres: Vec<Sphere>,
     pub canvas: Canvas,
@@ -44,6 +58,25 @@ pub struct Scene {
 impl Scene {
     const ORIGIN: Vec3 = Vec3::new(0.0, 0.0, 0.0);
     const BACK_GROUND_COLOR: (u8, u8, u8) = (255, 255, 255);
+    const LIGHTS: [Light; 3] = [
+        Light {
+            kind: LightKind::Ambient,
+            intensity: 0.1,
+        },
+        Light {
+            kind: LightKind::Point {
+                position: Vec3::new(2.0, 1.0, 0.0),
+            },
+            intensity: 0.6,
+        },
+        Light {
+            kind: LightKind::Direction {
+                direction: Vec3::new(1.0, 4.0, 4.0),
+            },
+            intensity: 0.2,
+        },
+    ];
+
     pub fn new(spheres: Vec<Sphere>, canvas: Canvas) -> Self {
         Self {
             spheres: spheres,
@@ -69,7 +102,16 @@ impl Scene {
         }
 
         match closest_sphere {
-            Some(sphere) => sphere.color,
+            Some(sphere) => {
+                let p = Self::ORIGIN + closes_t * d;
+                let n = (p - Vec3::from(sphere.center)).normalize_or_zero();
+                let intensity = self.compute_lighting(p, n, -d, sphere.specular);
+                let a = intensity * (sphere.color.0 as f32);
+                let b = intensity * (sphere.color.1 as f32);
+                let c = intensity * (sphere.color.2 as f32);
+
+                (a as u8, b as u8, c as u8)
+            }
             None => Self::BACK_GROUND_COLOR,
         }
     }
@@ -97,6 +139,37 @@ impl Scene {
         let t2 = (-b - discriminent.sqrt()) / (2.0 * a);
 
         return (t1, t2);
+    }
+
+    pub fn compute_lighting(&self, p: Vec3, n: Vec3, v: Vec3, s: u32) -> f32 {
+        let mut intensity = 0.0;
+
+        for light in Self::LIGHTS {
+            let l = match light.kind {
+                LightKind::Ambient => {
+                    intensity += light.intensity;
+                    continue;
+                }
+                LightKind::Point { position } => position - p,
+                LightKind::Direction { direction } => direction,
+            };
+
+            // Diffuse Reflection
+            let n_dot_l = n.dot(l);
+            if n_dot_l > 0.0 {
+                intensity += light.intensity * n_dot_l / (n.length() * l.length());
+            }
+
+            // Specular Reflection
+            let r = 2.0 * n * n.dot(l) - l;
+            let r_dot_v = r.dot(v);
+
+            if r_dot_v > 0.0 {
+                intensity += light.intensity * (r_dot_v / (r.length() * v.length())).powf(s as f32);
+            }
+        }
+
+        intensity
     }
 
     pub fn paint_canvas(&self) -> Vec<(i32, i32, (u8, u8, u8))> {
