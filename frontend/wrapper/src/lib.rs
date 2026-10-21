@@ -19,7 +19,7 @@ impl PaintScene {
             ));
         }
 
-        let canvas = Canvas::new(1, 1, 700, 700, distance);
+        let canvas = Canvas::new(2, 2, 800, 800, distance);
         Ok(Self {
             scene: Scene::new(Vec::new(), canvas),
             width,

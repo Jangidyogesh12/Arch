@@ -3,17 +3,25 @@ use glam::Vec3;
 pub struct Sphere {
     pub center: (f32, f32, f32),
     pub radius: f32,
-    pub color: (u8, u8, u8),
+    pub color: Vec3,
     pub specular: u32,
+    pub reflective: f32,
 }
 
 impl Sphere {
-    pub fn new(center: (f32, f32, f32), radius: f32, color: (u8, u8, u8), specular: u32) -> Self {
+    pub fn new(
+        center: (f32, f32, f32),
+        radius: f32,
+        color: Vec3,
+        specular: u32,
+        reflective: f32,
+    ) -> Self {
         Self {
             center,
             radius,
             color,
             specular,
+            reflective,
         }
     }
 }
@@ -57,23 +65,23 @@ pub struct Scene {
 
 impl Scene {
     const ORIGIN: Vec3 = Vec3::new(0.0, 0.0, 0.0);
-    const BACK_GROUND_COLOR: (u8, u8, u8) = (255, 255, 255);
+    const BACK_GROUND_COLOR: Vec3 = Vec3::new(255.0, 255.0, 255.0);
     const LIGHTS: [Light; 3] = [
         Light {
             kind: LightKind::Ambient,
-            intensity: 0.1,
+            intensity: 0.12,
         },
         Light {
             kind: LightKind::Point {
-                position: Vec3::new(2.0, 1.0, 0.0),
+                position: Vec3::new(0.0, 1.5, 0.0),
             },
-            intensity: 0.6,
+            intensity: 0.8,
         },
         Light {
             kind: LightKind::Direction {
                 direction: Vec3::new(1.0, 4.0, 4.0),
             },
-            intensity: 0.2,
+            intensity: 0.15,
         },
     ];
 
@@ -95,7 +103,7 @@ impl Scene {
         let mut closest_sphere = None;
         for sphere in &self.spheres {
             let (t1, t2) = self.find_intersection_points(origin, sphere, d);
-            if t1 >= t_min && t2 <= t_max && t1 < closest_t {
+            if t1 >= t_min && t1 <= t_max && t1 < closest_t {
                 closest_t = t1;
                 closest_sphere = Some(sphere);
             }
@@ -109,19 +117,32 @@ impl Scene {
         (closest_sphere, closest_t)
     }
 
-    pub fn trace_ray(&self, d: Vec3, t_min: f32, t_max: f32) -> (u8, u8, u8) {
+    pub fn reflected_ray(&self, r: Vec3, n: Vec3) -> Vec3 {
+        return 2.0 * n * n.dot(r) - r;
+    }
+
+    pub fn trace_ray(&self, o: Vec3, d: Vec3, t_min: f32, t_max: f32, recursive_depth: u8) -> Vec3 {
         let (closest_sphere, closest_t) = self.closest_sphere(Self::ORIGIN, d, t_min, t_max);
 
         match closest_sphere {
             Some(sphere) => {
-                let p = Self::ORIGIN + closest_t * d;
+                // Computing local color
+                let p = o + closest_t * d;
                 let n = (p - Vec3::from(sphere.center)).normalize_or_zero();
                 let intensity = self.compute_lighting(p, n, -d, sphere.specular);
-                let a = intensity * (sphere.color.0 as f32);
-                let b = intensity * (sphere.color.1 as f32);
-                let c = intensity * (sphere.color.2 as f32);
+                let local_color = intensity * sphere.color;
 
-                (a as u8, b as u8, c as u8)
+                // If we hit the recursion limit or the object is not reflective, we're done
+                let r = sphere.reflective;
+                if recursive_depth <= 0 || r <= 0.0 {
+                    return local_color;
+                }
+
+                // Compute the reflected ray color
+                let reflected_ray = self.reflected_ray(-d, n);
+                let reflected_color =
+                    self.trace_ray(p, reflected_ray, t_min, t_max, recursive_depth);
+                local_color * (1.0 - r) + reflected_color * r
             }
             None => Self::BACK_GROUND_COLOR,
         }
@@ -166,7 +187,8 @@ impl Scene {
             };
 
             // Shadow on the surface
-            let (closest_sphere, _) = self.closest_sphere(p, l, 1e-4, t_max);
+            let shadow_origin = p + n * 1e-3;
+            let (closest_sphere, _) = self.closest_sphere(shadow_origin, l, 1e-4, t_max);
             if closest_sphere.is_some() {
                 continue;
             }
@@ -189,14 +211,14 @@ impl Scene {
         intensity
     }
 
-    pub fn paint_canvas(&self) -> Vec<(i32, i32, (u8, u8, u8))> {
+    pub fn paint_canvas(&self) -> Vec<(i32, i32, (f32, f32, f32))> {
         let mut result: Vec<(i32, i32, (u8, u8, u8))> = Vec::new();
         for x in (-self.canvas.c_w / 2)..(self.canvas.c_w / 2) {
             for y in (-self.canvas.c_h / 2)..(self.canvas.c_h / 2) {
                 let d = self.canvas_to_viewport(x as f32, y as f32);
                 let color = self.trace_ray(d, 1e-4, f32::MAX);
 
-                result.push((x, y, color));
+                result.push((x, y, (color.x, color.y, color.z)));
             }
         }
 
