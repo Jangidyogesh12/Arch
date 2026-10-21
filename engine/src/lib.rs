@@ -84,26 +84,37 @@ impl Scene {
         }
     }
 
-    pub fn trace_ray(&self, d: Vec3, t_min: f32, t_max: f32) -> (u8, u8, u8) {
-        let mut closes_t = f32::MAX;
+    pub fn closest_sphere(
+        &self,
+        origin: Vec3,
+        d: Vec3,
+        t_min: f32,
+        t_max: f32,
+    ) -> (Option<&Sphere>, f32) {
+        let mut closest_t = f32::MAX;
         let mut closest_sphere = None;
-
         for sphere in &self.spheres {
-            let (t1, t2) = self.find_intersection_points(sphere, d);
-            if t1 >= t_min && t2 <= t_max && t1 < closes_t {
-                closes_t = t1;
+            let (t1, t2) = self.find_intersection_points(origin, sphere, d);
+            if t1 >= t_min && t2 <= t_max && t1 < closest_t {
+                closest_t = t1;
                 closest_sphere = Some(sphere);
             }
 
-            if t2 >= t_min && t2 <= t_max && t2 < closes_t {
-                closes_t = t2;
+            if t2 >= t_min && t2 <= t_max && t2 < closest_t {
+                closest_t = t2;
                 closest_sphere = Some(sphere);
             }
         }
 
+        (closest_sphere, closest_t)
+    }
+
+    pub fn trace_ray(&self, d: Vec3, t_min: f32, t_max: f32) -> (u8, u8, u8) {
+        let (closest_sphere, closest_t) = self.closest_sphere(Self::ORIGIN, d, t_min, t_max);
+
         match closest_sphere {
             Some(sphere) => {
-                let p = Self::ORIGIN + closes_t * d;
+                let p = Self::ORIGIN + closest_t * d;
                 let n = (p - Vec3::from(sphere.center)).normalize_or_zero();
                 let intensity = self.compute_lighting(p, n, -d, sphere.specular);
                 let a = intensity * (sphere.color.0 as f32);
@@ -122,9 +133,9 @@ impl Scene {
         Vec3::new(x * scale1, y * scale2, self.canvas.d as f32)
     }
 
-    pub fn find_intersection_points(&self, sphere: &Sphere, d: Vec3) -> (f32, f32) {
+    pub fn find_intersection_points(&self, origin: Vec3, sphere: &Sphere, d: Vec3) -> (f32, f32) {
         let r = sphere.radius;
-        let co = Self::ORIGIN - Vec3::from(sphere.center);
+        let co = origin - Vec3::from(sphere.center);
         let a = d.dot(d);
         let b = 2.0 * co.dot(d);
         let c = co.dot(co) - r * r;
@@ -145,14 +156,20 @@ impl Scene {
         let mut intensity = 0.0;
 
         for light in Self::LIGHTS {
-            let l = match light.kind {
+            let (l, t_max) = match light.kind {
                 LightKind::Ambient => {
                     intensity += light.intensity;
                     continue;
                 }
-                LightKind::Point { position } => position - p,
-                LightKind::Direction { direction } => direction,
+                LightKind::Point { position } => (position - p, 1.0),
+                LightKind::Direction { direction } => (direction, f32::MAX),
             };
+
+            // Shadow on the surface
+            let (closest_sphere, _) = self.closest_sphere(p, l, 1e-4, t_max);
+            if closest_sphere.is_some() {
+                continue;
+            }
 
             // Diffuse Reflection
             let n_dot_l = n.dot(l);
