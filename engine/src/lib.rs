@@ -1,4 +1,4 @@
-use glam::Vec3;
+pub use glam::Vec3;
 
 pub struct Sphere {
     pub center: (f32, f32, f32),
@@ -65,7 +65,8 @@ pub struct Scene {
 
 impl Scene {
     const ORIGIN: Vec3 = Vec3::new(0.0, 0.0, 0.0);
-    const BACK_GROUND_COLOR: Vec3 = Vec3::new(255.0, 255.0, 255.0);
+    const BACK_GROUND_COLOR: Vec3 = Vec3::new(0.0, 0.0, 0.0);
+    const MAX_REFLECTION_DEPTH: u8 = 5;
     const LIGHTS: [Light; 3] = [
         Light {
             kind: LightKind::Ambient,
@@ -122,7 +123,7 @@ impl Scene {
     }
 
     pub fn trace_ray(&self, o: Vec3, d: Vec3, t_min: f32, t_max: f32, recursive_depth: u8) -> Vec3 {
-        let (closest_sphere, closest_t) = self.closest_sphere(Self::ORIGIN, d, t_min, t_max);
+        let (closest_sphere, closest_t) = self.closest_sphere(o, d, t_min, t_max);
 
         match closest_sphere {
             Some(sphere) => {
@@ -133,15 +134,21 @@ impl Scene {
                 let local_color = intensity * sphere.color;
 
                 // If we hit the recursion limit or the object is not reflective, we're done
-                let r = sphere.reflective;
-                if recursive_depth <= 0 || r <= 0.0 {
+                let r = sphere.reflective.clamp(0.0, 1.0);
+                if recursive_depth == 0 || r <= 0.0 {
                     return local_color;
                 }
 
                 // Compute the reflected ray color
                 let reflected_ray = self.reflected_ray(-d, n);
-                let reflected_color =
-                    self.trace_ray(p, reflected_ray, t_min, t_max, recursive_depth);
+                let reflection_origin = p + n * 1e-3;
+                let reflected_color = self.trace_ray(
+                    reflection_origin,
+                    reflected_ray,
+                    1e-4,
+                    f32::MAX,
+                    recursive_depth - 1,
+                );
                 local_color * (1.0 - r) + reflected_color * r
             }
             None => Self::BACK_GROUND_COLOR,
@@ -203,7 +210,7 @@ impl Scene {
             let r = 2.0 * n * n.dot(l) - l;
             let r_dot_v = r.dot(v);
 
-            if r_dot_v > 0.0 {
+            if s > 0 && r_dot_v > 0.0 {
                 intensity += light.intensity * (r_dot_v / (r.length() * v.length())).powf(s as f32);
             }
         }
@@ -211,17 +218,23 @@ impl Scene {
         intensity
     }
 
-    pub fn paint_canvas(&self) -> Vec<(i32, i32, (f32, f32, f32))> {
+    pub fn paint_canvas(&self) -> Vec<(i32, i32, (u8, u8, u8))> {
         let mut result: Vec<(i32, i32, (u8, u8, u8))> = Vec::new();
         for x in (-self.canvas.c_w / 2)..(self.canvas.c_w / 2) {
             for y in (-self.canvas.c_h / 2)..(self.canvas.c_h / 2) {
                 let d = self.canvas_to_viewport(x as f32, y as f32);
-                let color = self.trace_ray(d, 1e-4, f32::MAX);
+                let color =
+                    self.trace_ray(Self::ORIGIN, d, 1e-4, f32::MAX, Self::MAX_REFLECTION_DEPTH);
 
-                result.push((x, y, (color.x, color.y, color.z)));
+                result.push((x, y, to_rgb8(color)));
             }
         }
 
         return result;
     }
+}
+
+fn to_rgb8(color: Vec3) -> (u8, u8, u8) {
+    let channel = |v: f32| v.clamp(0.0, 255.0).round() as u8;
+    (channel(color.x), channel(color.y), channel(color.z))
 }

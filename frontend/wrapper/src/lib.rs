@@ -1,4 +1,4 @@
-use arch_engine::{Canvas, Scene, Sphere as EngineSphere};
+use arch_engine::{Canvas, Scene, Sphere as EngineSphere, Vec3};
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
@@ -38,6 +38,7 @@ impl PaintScene {
         g: u8,
         b: u8,
         s: u32,
+        reflective: f32,
     ) -> Result<(), JsValue> {
         if !x.is_finite() || !y.is_finite() || !z.is_finite() || !radius.is_finite() || radius <= 0.
         {
@@ -45,9 +46,18 @@ impl PaintScene {
                 "Sphere coordinates must be finite and radius must be positive",
             ));
         }
-        self.scene
-            .spheres
-            .push(EngineSphere::new((x, y, z), radius, (r, g, b), s));
+        if !reflective.is_finite() || !(0.0..=1.0).contains(&reflective) {
+            return Err(JsValue::from_str(
+                "Reflectivity must be finite and between 0 and 1",
+            ));
+        }
+        self.scene.spheres.push(EngineSphere::new(
+            (x, y, z),
+            radius,
+            Vec3::new(r as f32, g as f32, b as f32),
+            s,
+            reflective,
+        ));
 
         Ok(())
     }
