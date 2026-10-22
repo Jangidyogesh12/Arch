@@ -1,4 +1,42 @@
-pub use glam::Vec3;
+pub use glam::{Mat3, Vec3};
+
+#[derive(Clone, Copy)]
+pub struct Camera {
+    pub position: Vec3,
+    pub rotation: Mat3,
+}
+
+impl Default for Camera {
+    fn default() -> Self {
+        Self {
+            position: Vec3::ZERO,
+            rotation: Mat3::IDENTITY,
+        }
+    }
+}
+
+impl Camera {
+    pub fn new(position: Vec3, rotation: Mat3) -> Self {
+        Self { position, rotation }
+    }
+
+    pub fn looking_at(position: Vec3, target: Vec3, up: Vec3) -> Self {
+        let forward = (target - position).normalize_or_zero();
+        let up = up.normalize_or_zero();
+        let right = up.cross(forward);
+        let right = if right.length_squared() < 1e-8 {
+            Vec3::X
+        } else {
+            right.normalize()
+        };
+        let up = forward.cross(right);
+
+        Self {
+            position,
+            rotation: Mat3::from_cols(right, up, forward),
+        }
+    }
+}
 
 pub struct Sphere {
     pub center: (f32, f32, f32),
@@ -61,10 +99,10 @@ pub struct Light {
 pub struct Scene {
     pub spheres: Vec<Sphere>,
     pub canvas: Canvas,
+    pub camera: Camera,
 }
 
 impl Scene {
-    const ORIGIN: Vec3 = Vec3::new(0.0, 0.0, 0.0);
     const BACK_GROUND_COLOR: Vec3 = Vec3::new(0.0, 0.0, 0.0);
     const MAX_REFLECTION_DEPTH: u8 = 5;
     const LIGHTS: [Light; 3] = [
@@ -86,10 +124,11 @@ impl Scene {
         },
     ];
 
-    pub fn new(spheres: Vec<Sphere>, canvas: Canvas) -> Self {
+    pub fn new(spheres: Vec<Sphere>, canvas: Canvas, camera: Camera) -> Self {
         Self {
-            spheres: spheres,
+            spheres,
             canvas,
+            camera,
         }
     }
 
@@ -222,9 +261,15 @@ impl Scene {
         let mut result: Vec<(i32, i32, (u8, u8, u8))> = Vec::new();
         for x in (-self.canvas.c_w / 2)..(self.canvas.c_w / 2) {
             for y in (-self.canvas.c_h / 2)..(self.canvas.c_h / 2) {
-                let d = self.canvas_to_viewport(x as f32, y as f32);
-                let color =
-                    self.trace_ray(Self::ORIGIN, d, 1e-4, f32::MAX, Self::MAX_REFLECTION_DEPTH);
+                let viewport = self.canvas_to_viewport(x as f32, y as f32);
+                let d = self.camera.rotation * viewport;
+                let color = self.trace_ray(
+                    self.camera.position,
+                    d,
+                    1e-4,
+                    f32::MAX,
+                    Self::MAX_REFLECTION_DEPTH,
+                );
 
                 result.push((x, y, to_rgb8(color)));
             }

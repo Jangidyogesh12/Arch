@@ -9,6 +9,19 @@ app.appendChild(board);
 
 const scene = getScene()!;
 
+// Camera at the origin, looking toward +Z, with +Y up.
+// This is the identity rotation; change the target to aim it anywhere:
+//   scene.setCamera(0, 1, -4, 0, 0, 6, 0, 1, 0);
+scene.setCamera(0, 0, 0, 0, 0, 1, 0, 1, 0);
+
+// The same orientation can be supplied directly as a column-major matrix
+// (columns: right, up, forward):
+//   scene.setCameraRotation(
+//     1, 0, 0,
+//     0, 1, 0,
+//     0, 0, 1,
+//   );
+
 // [x, y, z, radius, r, g, b, specular, reflective]
 const SPHERES: [number, number, number, number, number, number, number, number, number][] = [
   // Olive ground sphere: its top edge forms the horizon.
