@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 pub use glam::{Mat3, Vec3};
 
 #[derive(Clone, Copy)]
@@ -282,4 +284,120 @@ impl Scene {
 fn to_rgb8(color: Vec3) -> (u8, u8, u8) {
     let channel = |v: f32| v.clamp(0.0, 255.0).round() as u8;
     (channel(color.x), channel(color.y), channel(color.z))
+}
+
+pub struct Node {
+    val: i32,
+    prev: Option<i32>,
+    next: Option<i32>,
+}
+
+pub struct LruCache {
+    data: HashMap<i32, Box<Node>>,
+    first: Option<i32>,
+    last: Option<i32>,
+    size: i32,
+}
+
+impl LruCache {
+    pub fn new(capacity: i32) -> Self {
+        Self {
+            data: HashMap::new(),
+            first: None,
+            last: None,
+            size: capacity,
+        }
+    }
+
+    pub fn get(&mut self, key: i32) -> i32 {
+        let val = match self.data.get_mut(&key) {
+            Some(node) => node.val,
+            None => {
+                return -1;
+            }
+        };
+
+        self.detach(key);
+        self.attach_front(key);
+
+        return val;
+    }
+
+    pub fn detach(&mut self, key: i32) {
+        let (prev, next) = {
+            let node = self.data.get(&key).unwrap();
+            (node.prev, node.next)
+        };
+
+        match prev {
+            Some(p) => self.data.get_mut(&p).unwrap().next = next,
+            None => self.first = next,
+        }
+
+        match next {
+            Some(p) => self.data.get_mut(&p).unwrap().prev = prev,
+            None => self.last = prev,
+        }
+    }
+
+    pub fn attach_front(&mut self, key: i32) {
+        let older_first = self.first;
+
+        {
+            let node = self.data.get_mut(&key).unwrap();
+            node.prev = None;
+            node.next = older_first;
+        }
+
+        match older_first {
+            Some(p) => self.data.get_mut(&p).unwrap().prev = Some(key),
+            None => self.last = Some(key),
+        }
+
+        self.first = Some(key);
+    }
+    pub fn put(&mut self, key: i32, val: i32) {
+        if self.size == 0 {
+            return;
+        }
+        if (self.data.len() as i32) < self.size {
+            match self.data.get_mut(&key) {
+                Some(p) => {
+                    p.val = val;
+                    self.detach(key);
+                    self.attach_front(key);
+                    return;
+                }
+                None => {}
+            }
+
+            let new_node = Node {
+                val,
+                prev: None,
+                next: None,
+            };
+            self.data.insert(key, Box::new(new_node));
+            self.attach_front(key);
+        }
+
+        let last_key = match self.last {
+            Some(k) => {
+                self.detach(k);
+                k
+            }
+            None => -1,
+        };
+
+        self.data.remove(&last_key);
+
+        let new_node = Node {
+            val,
+            prev: None,
+            next: None,
+        };
+
+        self.data.insert(key, Box::new(new_node));
+
+        self.attach_front(key);
+    }
 }
