@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 pub use glam::{Mat3, Vec3};
 
 #[derive(Clone, Copy)]
@@ -285,4 +283,3 @@ fn to_rgb8(color: Vec3) -> (u8, u8, u8) {
     let channel = |v: f32| v.clamp(0.0, 255.0).round() as u8;
     (channel(color.x), channel(color.y), channel(color.z))
 }
-
